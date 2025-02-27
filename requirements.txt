@@ -1,0 +1,6 @@
+pydantic=4.12.2
+langchain
+langchain-openai
+python-dotenv
+streamlit
+loguru
