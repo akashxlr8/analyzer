@@ -75,7 +75,7 @@ class DatasetAnalyzer:
         
         try:
             output = self.llm.invoke(messages)
-            parsed_output = self.parser.parse(output.content)
+            parsed_output = self.parser.parse(str(output.content))
             return parsed_output.questions
         except Exception as e:
             print(f"Error generating questions: {str(e)}")
@@ -83,4 +83,13 @@ class DatasetAnalyzer:
                 question="Error generating questions. Please try again.",
                 category="Error",
                 reasoning="An error occurred during processing"
-            )] 
+            )]
+
+    # Add a method to allow adding custom questions
+    def add_custom_question(self, question: str, category: str, reasoning: str) -> AnalyticalQuestion:
+        """Create a custom analytical question"""
+        return AnalyticalQuestion(
+            question=question,
+            category=category,
+            reasoning=reasoning
+        )
