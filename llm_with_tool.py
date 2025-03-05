@@ -1,7 +1,7 @@
 from langchain_openai import AzureChatOpenAI
 from langchain.tools import Tool
 from langchain_experimental.utilities import PythonREPL
-
+from langchain.output_parsers import PydanticOutputParser
 
 import os, json
 from dotenv import load_dotenv
@@ -9,6 +9,8 @@ import pandas as pd
 from pydantic import BaseModel, Field
 from typing import Optional
 
+from logging_config import get_logger
+logger = get_logger("llm_with_tool")
 load_dotenv()
 
 class CodeOutput(BaseModel):
@@ -40,7 +42,10 @@ class CodeEnabledLLM:
             )
         ]
 
-    def analyze_question(self, df: pd.DataFrame, question: str, category: str) -> str:
+        # Initialize the parser
+        self.parser = PydanticOutputParser(pydantic_object=CodeOutput)
+
+    def analyze_question(self, df: pd.DataFrame, question: str, category: str) -> CodeOutput:
         """Analyze a question by generating and executing Python code."""
         try:
             # Get a glimpse of the dataset (head)
@@ -61,7 +66,6 @@ class CodeEnabledLLM:
             3.  Return the code and explanation in a structured JSON format.
 
             Make sure to include all necessary imports (e.g., pandas).
-            Wrap your code in ```python blocks.
 
             {{
                 "code": "your python code here",
@@ -72,33 +76,28 @@ class CodeEnabledLLM:
             # Invoke the LLM with the prompt
             response = self.llm.invoke(prompt)
 
-            # Check if the response is a list and convert to string
-            if isinstance(response.content, list):
-                response_content = "".join(str(item) for item in response.content)
-            else:
-                response_content = str(response.content)
-
             try:
-                # Parse the JSON response using Pydantic
-                code_output = CodeOutput.model_validate_json(response_content.encode('utf-8'))
-                code = code_output.code
+                # Fix the parsing error by ensuring string type
+                response_content = str(response.content)
+                code_output = self.parser.parse(response_content)
                 explanation = code_output.explanation
 
                 # Execute the code using the python_repl tool
+                code = code_output.code
                 if code:
                     try:
                         result = self.python_repl.run(code)
-                        return f"Explanation: {explanation}\nResult: {result}"
+                        return CodeOutput(code=code or "", explanation=f"{explanation or ''}\n\nResult:\n{result or ''}")
                     except Exception as e:
-                        return f"Error executing code: {str(e)}"
+                        return CodeOutput(code="Error executing code", explanation=str(e))
                 else:
-                    return "No code was generated."
+                    return CodeOutput(code="No code was generated", explanation="")
 
             except Exception as e:
-                return f"Error parsing JSON response: {str(e)}\nRaw response: {response_content}"
+                return CodeOutput(code="Error parsing JSON response", explanation=str(e))
 
         except Exception as e:
-            return f"Error during analysis: {str(e)}"
+            return CodeOutput(code="Error during analysis", explanation=str(e))
 
 if __name__ == '__main__':
     # Example Usage (for testing purposes)
