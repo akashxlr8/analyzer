@@ -1,6 +1,6 @@
 from langchain_openai import AzureChatOpenAI
 from langchain.tools import Tool
-from langchain_experimental.utilities import PythonREPL
+# from langchain_experimental.utilities import PythonREPL
 from langchain.output_parsers import PydanticOutputParser
 
 import os, json
@@ -30,21 +30,23 @@ class CodeEnabledLLM:
             max_retries=2,
         )
 
+        # self.llm=self.llm.with_structured_output(CodeOutput)
+        
         # Initialize Python REPL tool
-        self.python_repl = PythonREPL()
+        # self.python_repl = PythonREPL()
 
-        # Define the tool
-        self.tools = [
-            Tool(
-                name="python_repl",
-                func=self.python_repl.run,
-                description="Useful for executing python code. Use this to perform data analysis, calculations, and any other tasks that require code execution. Input should be a valid python code snippet."
-            )
-        ]
+        # # Define the tool
+        # self.tools = [
+        #     Tool(
+        #         name="python_repl",
+        #         func=self.python_repl.run,
+        #         description="Useful for executing python code. Use this to perform data analysis, calculations, and any other tasks that require code execution. Input should be a valid python code snippet."
+        #     )
+        # ]
 
         # Initialize the parser
         self.parser = PydanticOutputParser(pydantic_object=CodeOutput)
-
+        # self.llm=self.llm.bind_tools(tools=self.tools)
     def analyze_question(self, df: pd.DataFrame, question: str, category: str) -> CodeOutput:
         """Analyze a question by generating and executing Python code."""
         try:
@@ -63,7 +65,6 @@ class CodeEnabledLLM:
             To accomplish this, you should:
             1.  Write Python code that uses the Pandas library to analyze the data and answer the question.
             2.  Provide a brief explanation of the code.
-            3.  Return the code and explanation in a structured JSON format.
 
             Make sure to include all necessary imports (e.g., pandas).
 
@@ -76,26 +77,11 @@ class CodeEnabledLLM:
             # Invoke the LLM with the prompt
             response = self.llm.invoke(prompt)
 
-            try:
-                # Fix the parsing error by ensuring string type
-                response_content = str(response.content)
-                code_output = self.parser.parse(response_content)
-                explanation = code_output.explanation
-
-                # Execute the code using the python_repl tool
-                code = code_output.code
-                if code:
-                    try:
-                        result = self.python_repl.run(code)
-                        return CodeOutput(code=code or "", explanation=f"{explanation or ''}\n\nResult:\n{result or ''}")
-                    except Exception as e:
-                        return CodeOutput(code="Error executing code", explanation=str(e))
-                else:
-                    return CodeOutput(code="No code was generated", explanation="")
-
-            except Exception as e:
-                return CodeOutput(code="Error parsing JSON response", explanation=str(e))
-
+            print(response)
+            # Parse the output using the PydanticOutputParser
+            # parsed_output = self.parser.parse(str(response.content))
+            # return parsed_output
+            return response.content
         except Exception as e:
             return CodeOutput(code="Error during analysis", explanation=str(e))
 
