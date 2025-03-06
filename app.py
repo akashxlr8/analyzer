@@ -3,6 +3,8 @@ import pandas as pd
 from llm_analyzer import DatasetAnalyzer
 from logging_config import get_logger
 from llm_with_tool import CodeEnabledLLM
+from db import AnalysisDatabase
+
 logger = get_logger("app")
 
 def main():
@@ -10,6 +12,9 @@ def main():
     
     # Initialize the analyzer
     analyzer = DatasetAnalyzer()
+    
+    # Initialize the database
+    db = AnalysisDatabase()
     
     # File upload widget
     uploaded_file = st.file_uploader("Choose a CSV file", type=['csv'])
@@ -19,6 +24,15 @@ def main():
         try:
             # Read the CSV file
             df = pd.read_csv(uploaded_file)
+            
+            # After reading the CSV file
+            dataset_id = db.save_dataset(
+                filename=uploaded_file.name,
+                row_count=df.shape[0],
+                column_count=df.shape[1],
+                columns=df.columns.tolist()
+            )
+            st.session_state.current_dataset_id = dataset_id
             
             # Display basic information about the dataset
             st.subheader('Dataset Info')
@@ -46,6 +60,17 @@ def main():
                         st.write(f"**Category:** {q.category}")
                         st.write(f"**Reasoning:** {q.reasoning}")
             
+            # After generating questions
+            for q in questions:
+                question_id = db.save_question(
+                    dataset_id=st.session_state.current_dataset_id,
+                    question=q.question,
+                    category=q.category,
+                    reasoning=q.reasoning
+                )
+                # Store question_id for later use
+                q.db_id = question_id
+            
             # After showing the AI-generated questions, add a custom question input
             st.subheader('Add Your Own Analysis Question')
             custom_question = st.text_input("Enter your own analytical question:")
@@ -69,6 +94,16 @@ def main():
                     st.session_state.questions = questions
                 st.session_state.questions.append(custom_q)
                 st.success("Question added successfully!")
+                
+                # When adding custom questions
+                question_id = db.save_question(
+                    dataset_id=st.session_state.current_dataset_id,
+                    question=custom_question,
+                    category=custom_category or "Category Not Specified",
+                    reasoning=custom_reasoning,
+                    is_custom=True
+                )
+                custom_q.db_id = question_id
                 
             # Display all questions (including custom ones)
             st.subheader('All Analysis Questions')
@@ -104,6 +139,23 @@ def main():
                         with st.expander("Analysis Result", expanded=True):
                             st.markdown(analysis)
                             st.info("This analysis was performed by an AI with access to calculation tools.")
+                    
+                    # After getting analysis result
+                    if hasattr(analysis, 'code') and hasattr(analysis, 'explanation'):
+                        db.save_code_analysis(
+                            question_id=selected_q.db_id,
+                            code=analysis.code,
+                            explanation=analysis.explanation,
+                            result=""  # You can capture the result if available
+                        )
+                    else:
+                        # If analysis is a string or has a different structure
+                        db.save_code_analysis(
+                            question_id=selected_q.db_id,
+                            code=str(analysis),
+                            explanation="",
+                            result=""
+                        )
                 except ImportError:
                     st.error("The calculator-enabled LLM module is not available. Please make sure llm_with_tool.py exists.")
                 except Exception as e:
