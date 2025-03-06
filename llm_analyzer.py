@@ -11,6 +11,7 @@ class AnalyticalQuestion(BaseModel):
     question: str = Field(description="The analytical question about the dataset")
     category: str = Field(description="Category of the question (e.g., 'Trend Analysis', 'Correlation', 'Distribution', 'Outliers', 'Pattern Recognition')")
     reasoning: str = Field(description="Brief explanation of why this question is relevant")
+    db_id: int = Field(default=None, description="Database ID for the question")
 
 class DatasetQuestions(BaseModel):
     questions: List[AnalyticalQuestion] = Field(description="List of 5 analytical questions about the dataset")
